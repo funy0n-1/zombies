@@ -3,6 +3,7 @@ local pathfindingService = game:GetService("PathfindingService")
 local ServerStorage = game:GetService("ServerStorage")
 local players = game:GetService("Players")
 local zombies = {}
+local targets = {}
 zombies.active =  {}
 zombies.inactive = {}
 
@@ -34,6 +35,16 @@ function contains(list, thing)
     return false
 end
 
+function getZombieIndex(zombie, active:boolean)
+    print(active)
+    for i, _zombie in ipairs(zombies.active) do
+        if _zombie == zombie then
+            return i
+        end
+    end
+    return false
+end
+
 function checkDist(part1, part2)
     if typeof(part1) ~= Vector3 then part1 = part1.Position end
     if typeof(part2) ~= Vector3 then part2 = part2.Position end
@@ -49,7 +60,8 @@ function updateTarget()
                 if player and player.Humanoid.Health > 0 then target = player.HumanoidRootPart end
             end
         end
-        zombies.active.zombie.target = target
+        local zombieIndex = getZombieIndex(zombie)
+        targets[zombieIndex] = target
     end
 end
 
@@ -60,9 +72,9 @@ end)
 
 function pathToTarget(zombie)
     path = pathfindingService:CreatePath(pathfindingParams)
-    path:ComputeAsync(zombie.HumanoidRootPart.Position, zombies.active.zombie.target.Position)
+    path:ComputeAsync(zombie.HumanoidRootPart.Position, targets[getZombieIndex(zombie)].Position)
     local waypoints = path:GetWaypoints()
-    local currentTarget = zombies.active.zombie.target
+    local currentTarget = targets[getZombieIndex(zombie)]
     for i,waypoint in pairs(waypoints) do
         if waypoint.Action == Enum.PathWaypointAction.Jump then
             zombie.Humanoid.Jump = true
@@ -71,9 +83,9 @@ function pathToTarget(zombie)
         else
             zombie.Humanoid:MoveTo(waypoint.Position)
             zombie.Humanoid.MoveToFinished:wait()
-            if not zombies.active.zombie.target then
+            if not targets[getZombieIndex(zombie)] then
                 break
-            elseif checkDist(currentTarget,waypoints[#waypoints]) > 10 or currentTarget ~= zombies.active.zombie.target then
+            elseif checkDist(currentTarget,waypoints[#waypoints]) > 10 or currentTarget ~= targets[getZombieIndex(zombie)] then
                 pathToTarget(zombie)
                 break
             end
@@ -86,7 +98,7 @@ function moveHandler(zombie)
         if zombie.Humanoid.Health <= 0 then
             break
         end
-        if zombies.active.zombie.target then
+        if targets[getZombieIndex(zombie)] then
             pathToTarget(zombie)
         end
     end
@@ -114,6 +126,7 @@ end
 CollectionService:GetInstanceAddedSignal("enemy"):Connect(function(enemy)
     if CollectionService:HasTag(enemy, "zombie") then
         if enemy:FindFirstAncestor("Workspace") then
+
             if contains(zombies.active, enemy) == false then
                 table.insert(zombies.active, enemy)
                 async(moveHandler, enemy)
